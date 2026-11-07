@@ -1,0 +1,301 @@
+
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="theme-color" content="#101d35">
+  <title>LineX Builders</title>
+  <link rel="stylesheet" href="style.css">
+
+  <!-- PDF libraries -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.2/jspdf.umd.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.8.4/jspdf.plugin.autotable.min.js"></script>
+</head>
+
+<body>
+
+  <!-- LOGIN -->
+  <div id="authScreen" class="auth-screen">
+    <div class="auth-layout">
+
+      <section class="brand-panel">
+        <div class="brand-top">
+          <div class="brand-symbol">LX</div>
+          <span>LineX <strong>Builders</strong></span>
+        </div>
+
+        <div class="brand-content">
+          <span class="eyebrow">BUSINESS MANAGEMENT PLATFORM</span>
+          <h1>Build better.<br><span>Manage smarter.</span></h1>
+          <p>Manage clients, track payments and keep your business finances organised in one place.</p>
+
+          <div class="brand-features">
+            <div class="feature"><span class="feature-icon">01</span><div><strong>Client Management</strong><small>Organised client records.</small></div></div>
+            <div class="feature"><span class="feature-icon">02</span><div><strong>Payment Tracking</strong><small>Track received amounts and balances.</small></div></div>
+            <div class="feature"><span class="feature-icon">03</span><div><strong>Professional Reports</strong><small>Download client statements as PDF.</small></div></div>
+          </div>
+        </div>
+
+        <div class="brand-bottom">
+          <span>LINEX BUILDERS</span>
+          <span>BUILT FOR BETTER MANAGEMENT</span>
+        </div>
+      </section>
+
+      <section class="form-panel">
+        <div class="form-top">
+          <span class="mobile-brand">LX</span>
+          <span class="secure-label"><span class="secure-dot"></span> SECURE ACCESS</span>
+        </div>
+
+        <div class="auth-content">
+          <div class="welcome-icon">LX</div>
+
+          <div class="welcome-text">
+            <span class="eyebrow dark-eyebrow">WELCOME TO LINEX</span>
+            <h2>Welcome back.</h2>
+            <p>Sign in to access your business dashboard.</p>
+          </div>
+
+          <div class="auth-tabs">
+            <button id="loginTab" class="tab active" type="button">Sign In</button>
+            <button id="registerTab" class="tab" type="button">Create Account</button>
+          </div>
+
+          <form id="authForm">
+            <div class="field-group">
+              <label for="username">Username</label>
+              <div class="input-wrap">
+                <span>♙</span>
+                <input id="username" type="text" placeholder="Enter your username" minlength="3" maxlength="20" required autocomplete="username">
+              </div>
+            </div>
+
+            <div class="field-group">
+              <label for="password">Password</label>
+              <div class="input-wrap">
+                <span>♙</span>
+                <input id="password" type="password" placeholder="Enter your password" minlength="6" required autocomplete="current-password">
+              </div>
+            </div>
+
+            <label class="password-toggle">
+              <input id="showPassword" type="checkbox">
+              <span class="custom-check"></span>
+              Show password
+            </label>
+
+            <button id="authButton" class="primary-btn auth-submit" type="submit">
+              <span>Sign In</span><span>→</span>
+            </button>
+          </form>
+
+          <p id="authMessage" class="message"></p>
+          <div class="form-divider"><span></span><small>LINEX BUILDERS</small><span></span></div>
+          <p class="privacy-note">Your workspace is protected with secure account access.</p>
+        </div>
+
+        <div class="form-footer">
+          <span>© 2026 LineX Builders</span>
+          <span>Professional Client Management</span>
+        </div>
+      </section>
+    </div>
+  </div>
+
+  <!-- MAIN APP -->
+  <div id="appScreen" class="app-screen hidden">
+
+    <header class="topbar">
+      <div class="brand">
+        <div class="small-logo">LX</div>
+        <div>
+          <strong>LineX Builders</strong>
+          <small>CLIENT MANAGEMENT</small>
+        </div>
+      </div>
+
+      <div class="user-area">
+        <div class="user-avatar" id="userAvatar">U</div>
+        <span id="displayUsername"></span>
+        <button id="logoutBtn" class="logout-btn">Sign Out</button>
+      </div>
+    </header>
+
+    <main class="main-container">
+
+      <!-- DASHBOARD -->
+      <section id="dashboard">
+
+        <div class="dashboard-welcome">
+          <div>
+            <span class="section-label">OVERVIEW</span>
+            <h1>Business Dashboard</h1>
+            <p>Welcome back. Here's your client workspace.</p>
+          </div>
+          <div class="today-date" id="todayDisplay"></div>
+        </div>
+
+        <div class="dashboard-stats">
+          <div class="stat-card">
+            <div class="stat-icon blue-icon">♧</div>
+            <div><span>Total Clients</span><strong id="clientCountNumber">0</strong></div>
+          </div>
+
+          <div class="stat-card">
+            <div class="stat-icon green-icon">₹</div>
+            <div><span>Total Received</span><strong id="dashboardReceived">₹0.00</strong></div>
+          </div>
+
+          <div class="stat-card">
+            <div class="stat-icon orange-icon">◷</div>
+            <div><span>Total Outstanding</span><strong id="dashboardBalance">₹0.00</strong></div>
+          </div>
+        </div>
+
+        <div class="section-heading">
+          <div>
+            <span class="section-label">YOUR WORKSPACE</span>
+            <h2>Client Directory</h2>
+            <p>Access and manage individual client accounts.</p>
+          </div>
+          <button id="addClientBtn" class="primary-btn">＋ Add New Client</button>
+        </div>
+
+        <form id="clientForm" class="client-form hidden">
+          <div class="client-form-field">
+            <label>Client Name</label>
+            <input id="clientName" type="text" placeholder="Enter client name" maxlength="80" required>
+          </div>
+          <button class="primary-btn" type="submit">Save Client</button>
+          <button id="cancelClientBtn" class="secondary-btn" type="button">Cancel</button>
+        </form>
+
+        <div class="directory-toolbar">
+          <span id="clientCount">0 Clients</span>
+          <span>All your clients in one place</span>
+        </div>
+
+        <div id="clientsList" class="clients-grid">
+          <div class="empty-state">No clients added yet.</div>
+        </div>
+      </section>
+
+      <!-- CLIENT LEDGER -->
+      <section id="ledgerSection" class="hidden">
+
+        <div class="ledger-top">
+          <div>
+            <button id="backBtn" class="back-btn">← Back to Clients</button>
+            <span class="section-label">CLIENT ACCOUNT</span>
+            <h1 id="ledgerClientName">Client Ledger</h1>
+            <p>Financial transactions and payment statement</p>
+          </div>
+
+          <button id="downloadPdfBtn" class="download-btn">
+            <span>↓</span> Download PDF
+          </button>
+        </div>
+
+        <div class="ledger-summary">
+          <div class="ledger-stat total-stat">
+            <span>TOTAL TRANSACTIONS</span>
+            <strong id="totalAmount">₹0.00</strong>
+            <small>All recorded amounts</small>
+          </div>
+
+          <div class="ledger-stat received-stat">
+            <span>TOTAL RECEIVED</span>
+            <strong id="totalReceived">₹0.00</strong>
+            <small>Payments confirmed</small>
+          </div>
+
+          <div class="ledger-stat balance-stat">
+            <span>OUTSTANDING BALANCE</span>
+            <strong id="totalBalance">₹0.00</strong>
+            <small>Payments pending</small>
+          </div>
+        </div>
+
+        <div class="content-panel">
+          <div class="panel-heading">
+            <div>
+              <h3>Record a Transaction</h3>
+              <p>Add a new amount to this client's account.</p>
+            </div>
+            <span class="panel-icon">＋</span>
+          </div>
+
+          <form id="transactionForm" class="transaction-form">
+            <div>
+              <label>Date</label>
+              <input id="entryDate" type="date" required>
+            </div>
+            <div>
+              <label>Description</label>
+              <input id="entryDescription" type="text" placeholder="What is this payment for?" maxlength="200" required>
+            </div>
+            <div>
+              <label>Amount (₹)</label>
+              <input id="entryAmount" type="number" placeholder="0.00" min="0.01" step="0.01" required>
+            </div>
+            <button class="primary-btn add-transaction-btn" type="submit">＋ Add Entry</button>
+          </form>
+        </div>
+
+        <div class="content-panel history-panel">
+          <div class="panel-heading">
+            <div>
+              <h3>Transaction History</h3>
+              <p>Complete financial record for this client.</p>
+            </div>
+            <span id="entryCount" class="entry-count">0 entries</span>
+          </div>
+
+          <div class="table-scroll">
+            <table>
+              <thead>
+                <tr>
+                  <th>DATE</th>
+                  <th>DESCRIPTION</th>
+                  <th>AMOUNT</th>
+                  <th>RECEIVED?</th>
+                  <th>RECEIVED</th>
+                  <th>BALANCE</th>
+                  <th></th>
+                </tr>
+              </thead>
+              <tbody id="entriesBody">
+                <tr><td colspan="7" class="empty-state">No transactions yet.</td></tr>
+              </tbody>
+              <tfoot>
+                <tr>
+                  <th colspan="2">GRAND TOTAL</th>
+                  <th id="footAmount">₹0.00</th>
+                  <th></th>
+                  <th id="footReceived">₹0.00</th>
+                  <th id="footBalance">₹0.00</th>
+                  <th></th>
+                </tr>
+              </tfoot>
+            </table>
+          </div>
+
+          <div class="table-note">Tick the checkbox when a payment has been received. The totals update automatically.</div>
+        </div>
+
+      </section>
+    </main>
+
+    <footer>© 2026 LineX Builders <span>·</span> Professional Client Management</footer>
+  </div>
+
+  <div id="loadingScreen" class="loading-screen hidden">
+    <div class="loader"></div>
+    <p>Loading LineX Builders...</p>
+  </div>
+
+  <script type="module" src="script.js"></script>
+</body>
+</html>
