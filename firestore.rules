@@ -1,12 +1,28 @@
+
 rules_version = '2';
 
 service cloud.firestore {
   match /databases/{database}/documents {
 
-    match /users/{userId}/{document=**} {
-      allow read, write: if request.auth != null
-        && request.auth.uid == userId;
-    }
+    match /users/{userId} {
 
+      // Only the account owner can access their profile.
+      allow read, write: if request.auth != null
+                         && request.auth.uid == userId;
+
+      match /clients/{clientId} {
+
+        // Only the account owner can manage their clients.
+        allow read, write: if request.auth != null
+                           && request.auth.uid == userId;
+
+        match /entries/{entryId} {
+
+          // Only the account owner can manage transactions.
+          allow read, write: if request.auth != null
+                             && request.auth.uid == userId;
+        }
+      }
+    }
   }
 }
