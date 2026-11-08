@@ -2,360 +2,182 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
+    <script src="https://unpkg.com/lucide@latest"></script>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <meta name="theme-color" content="#14213d">
-  <title>BuildLedger | Account Management</title>
+  <title>LineX Builders</title>
   <link rel="stylesheet" href="style.css">
 </head>
 <body>
 
-  <main id="loginScreen" class="login-screen">
-    <section class="login-card">
-      <div class="brand-mark">BL</div>
-      <p class="eyebrow">BUILDLEDGER ACCOUNT MANAGEMENT</p>
-      <h1 id="authTitle">Welcome back</h1>
-      <p class="muted" id="authSubtitle">Sign in to manage your accounts.</p>
+  <section id="authScreen" class="auth-screen">
+    <div class="auth-card">
+      <h1>LineX Builders</h1>
+      <p>Client Account Management</p>
 
-      <form id="loginForm">
-        <label for="loginUsername">Username</label>
-        <input id="loginUsername" type="text" placeholder="Enter your username" autocomplete="username" required>
-
-        <label for="loginPassword">Password</label>
-        <input id="loginPassword" type="password" placeholder="Enter your password" autocomplete="current-password" required>
-
-        <button class="primary-btn full" type="submit">Sign in →</button>
-        <p id="loginMessage" class="message"></p>
-      </form>
-
-      <form id="registerForm" class="hidden">
-        <label for="registerUsername">Choose username</label>
-        <input id="registerUsername" type="text" placeholder="Choose a unique username" minlength="3" maxlength="20" pattern="[A-Za-z0-9_]+" required>
-
-        <label for="registerPassword">Password</label>
-        <input id="registerPassword" type="password" placeholder="Create a password" minlength="8" required>
-
-        <label for="confirmPassword">Confirm password</label>
-        <input id="confirmPassword" type="password" placeholder="Enter password again" minlength="8" required>
-
-        <button class="primary-btn full" type="submit">Create account →</button>
-        <p id="registerMessage" class="message"></p>
-      </form>
-
-      <p class="auth-switch">
-        <span id="authSwitchText">Don't have an account?</span>
-        <button type="button" id="switchAuthBtn" class="text-btn">Create account</button>
-      </p>
-    </section>
-  </main>
-
-  <div id="appScreen" class="app-shell hidden">
-    <aside class="sidebar">
-      <div class="brand">
-        <div class="brand-mark small">BL</div>
-        <strong>BuildLedger</strong>
+      <div id="loginBox">
+        <h2>Login</h2>
+        <form id="loginForm">
+          <input id="loginUsername" placeholder="Username" required>
+          <div class="password-wrap">
+            <input id="loginPassword" type="password" placeholder="Password" required>
+            <button type="button" class="toggle-password" data-target="loginPassword">👁</button>
+          </div>
+          <button type="submit">Login</button>
+        </form>
+        <p>Don't have an account? <a href="#" id="showRegister">Register</a></p>
       </div>
 
-      <button class="nav-item active" id="dashboardNav">Dashboard</button>
-      <button class="nav-item" id="clientsNav">Clients</button>
-      <button id="logoutBtn" class="logout-btn">Sign out</button>
-    </aside>
+      <div id="registerBox" class="hidden">
+        <h2>Create Account</h2>
+        <form id="registerForm">
+          <input id="registerUsername" placeholder="Choose username" required>
+          <div class="password-wrap">
+            <input id="registerPassword" type="password" placeholder="Password" required>
+            <button type="button" class="toggle-password" data-target="registerPassword">Show</button>
+          </div>
+          <div class="password-wrap">
+            <input id="confirmPassword" type="password" placeholder="Confirm password" required>
+            <button type="button" class="toggle-password" data-target="confirmPassword">Show</button>
+          </div>
+          <button type="submit">Create Account</button>
+        </form>
+        <p>Already registered? <a href="#" id="showLogin">Login</a></p>
+      </div>
+      <p id="authMessage" class="message"></p>
+    </div>
+  </section>
 
-    <main class="main-area">
-      <header class="topbar">
-        <p class="eyebrow">ACCOUNTING WORKSPACE</p>
-        <h1 id="pageTitle">Dashboard</h1>
-        <p class="muted">Welcome, <strong id="currentUsername">User</strong></p>
-      </header>
+  <section id="appScreen" class="hidden">
+    <header class="topbar">
+      <h1>LineX Builders</h1>
+      <div>
+        <span id="welcomeUser"></span>
+        <button id="logoutBtn" class="secondary">Logout</button>
+      </div>
+    </header>
 
-      <section id="dashboardPage" class="page">
-        <div class="welcome-row">
+    <main class="container">
+      <section id="dashboardPage">
+        <div class="page-heading">
           <div>
-            <h2>Overview</h2>
-            <p class="muted">Your account summary.</p>
+            <h2>Dashboard</h2>
+            <p>Manage your clients and accounts</p>
           </div>
-          <button class="primary-btn" id="addClientTop">+ Add client</button>
+          <button id="addClientTop">+ Add Client</button>
         </div>
-
-        <div class="stats-grid">
-          <article class="stat-card"><p>Total clients</p><strong id="totalClients">0</strong></article>
-          <article class="stat-card"><p>Total income</p><strong id="totalIncome">₹0</strong></article>
-          <article class="stat-card"><p>Total expenses</p><strong id="totalExpenses">₹0</strong></article>
-          <article class="stat-card"><p>Net balance</p><strong id="netBalance">₹0</strong></article>
+        <div class="stats">
+          <div class="stat-card">
+            <span>Total Clients</span>
+            <strong id="totalClients">0</strong>
+          </div>
         </div>
-
-        <section class="panel explorer-panel">
-          <div class="explorer-heading">
-            <div>
-              <p class="eyebrow">ALL CLIENTS</p>
-              <h2>Transaction Explorer</h2>
-              <p class="muted">Search materials, payments and descriptions across every client.</p>
-            </div>
-            <span class="explorer-count" id="dashboardResultCount">0 records</span>
-          </div>
-
-          <div class="explorer-search-wrap">
-            <label for="dashboardTransactionSearch">Search transactions</label>
-            <input id="dashboardTransactionSearch" type="search" list="transactionSuggestions" placeholder="Start typing: cement, steel, sand, payment..." autocomplete="off">
-            <datalist id="transactionSuggestions"></datalist>
-          </div>
-
-          <div class="filter-grid">
-            <div>
-              <label for="dashboardPeriod">Time period</label>
-              <select id="dashboardPeriod">
-                <option value="all">All time</option>
-                <option value="today">Today</option>
-                <option value="week">This week</option>
-                <option value="month">This month</option>
-                <option value="custom">Custom date range</option>
-              </select>
-            </div>
-
-            <div>
-              <label for="dashboardType">Transaction type</label>
-              <select id="dashboardType">
-                <option value="all">Income + expenses</option>
-                <option value="expense">Payments / expenses only</option>
-                <option value="income">Income only</option>
-              </select>
-            </div>
-
-            <div>
-              <label for="dashboardClientFilter">Client</label>
-              <select id="dashboardClientFilter">
-                <option value="all">All clients</option>
-              </select>
-            </div>
-          </div>
-
-          <div class="custom-date-row hidden" id="dashboardCustomDates">
-            <div>
-              <label for="dashboardFromDate">From</label>
-              <input id="dashboardFromDate" type="date">
-            </div>
-            <div>
-              <label for="dashboardToDate">To</label>
-              <input id="dashboardToDate" type="date">
-            </div>
-          </div>
-
-          <div class="explorer-summary">
-            <div><span>Matching income</span><strong id="dashboardMatchIncome">₹0.00</strong></div>
-            <div><span>Matching payments</span><strong id="dashboardMatchExpense">₹0.00</strong></div>
-            <div><span>Matching records</span><strong id="dashboardMatchCount">0</strong></div>
-          </div>
-
-          <div class="table-wrap explorer-table-wrap">
-            <table>
-              <thead>
-                <tr>
-                  <th>Date</th>
-                  <th>Client</th>
-                  <th>Description / material</th>
-                  <th>Type</th>
-                  <th class="money-column">Amount</th>
-                </tr>
-              </thead>
-              <tbody id="dashboardExplorerTable"></tbody>
-            </table>
-          </div>
-
-          <div class="empty-state" id="dashboardExplorerEmpty">
-            No matching transactions. Try another search or time period.
-          </div>
-        </section>
-
-        <h2 class="recent-clients-title">Recent clients</h2>
-        <div id="recentClients" class="client-grid"></div>
-        <div id="dashboardEmpty" class="empty-state">No clients yet. Add your first client.</div>
-        <button class="text-btn" id="viewAllClients">View all clients →</button>
+        <h3>Your Clients</h3>
+        <div id="clientList" class="client-grid"></div>
       </section>
 
-      <section id="clientsPage" class="page hidden">
-        <div class="welcome-row">
-          <h2>All clients</h2>
-          <button class="primary-btn" id="addClientBtn">+ Add client</button>
-        </div>
-
-        <input id="clientSearch" type="search" placeholder="Search clients...">
-        <div id="clientCount" class="muted"></div>
-        <div id="allClients" class="client-grid"></div>
-        <div id="clientsEmpty" class="empty-state">No clients found.</div>
-      </section>
-
-      <section id="accountPage" class="page hidden">
-        <button id="backToClients" class="text-btn">← Back to clients</button>
-
-        <div class="welcome-row">
+      <section id="clientPage" class="hidden">
+        <button id="backBtn" class="secondary">← Back</button>
+        <div class="page-heading">
           <div>
-            <h2 id="accountClientName">Client</h2>
-            <p id="accountClientDetails" class="muted"></p>
+            <h2 id="clientNameTitle">Client</h2>
+            <p id="clientDetails"></p>
           </div>
-          <button id="deleteClientBtn" class="danger-btn">Delete client</button>
+          <div style="display:flex; gap:10px; flex-wrap:wrap;">
+  <button id="shareClientBtn" class="secondary">🔗 Share Client</button>
+  <button id="downloadPdfBtn">📄 Download PDF</button>
+</div>
         </div>
 
-        <div class="stats-grid">
-          <article class="stat-card"><p>Total income</p><strong id="clientIncome">₹0</strong></article>
-          <article class="stat-card"><p>Total expenses</p><strong id="clientExpenses">₹0</strong></article>
-          <article class="stat-card"><p>Balance</p><strong id="clientBalance">₹0</strong></article>
+        <div class="stats">
+          <div class="stat-card">
+            <span>Total Amount</span>
+            <strong id="totalAmount">₹0.00</strong>
+          </div>
+          <div class="stat-card">
+            <span>Received</span>
+            <strong id="totalReceived">₹0.00</strong>
+          </div>
+          <div class="stat-card">
+            <span>Balance</span>
+            <strong id="totalBalance">₹0.00</strong>
+          </div>
         </div>
 
-        <section class="panel explorer-panel client-explorer-panel">
-          <div class="explorer-heading">
-            <div>
-              <p class="eyebrow">THIS CLIENT</p>
-              <h2>Find in transaction history</h2>
-              <p class="muted">Type a material or payment description to find matching records.</p>
-            </div>
-            <span class="explorer-count" id="clientResultCount">0 records</span>
-          </div>
+        <div class="section-heading">
+          <h3>Transactions</h3>
+          <button id="addTransactionBtn">+ Add Transaction</button>
+        </div>
 
-          <div class="explorer-search-wrap">
-            <label for="clientTransactionSearch">Search this client's transactions</label>
-            <input id="clientTransactionSearch" type="search" list="transactionSuggestions" placeholder="Type a material, supplier or payment..." autocomplete="off">
-          </div>
-
-          <div class="filter-grid client-filter-grid">
-            <div>
-              <label for="clientPeriod">Time period</label>
-              <select id="clientPeriod">
-                <option value="all">All time</option>
-                <option value="today">Today</option>
-                <option value="week">This week</option>
-                <option value="month">This month</option>
-                <option value="custom">Custom date range</option>
-              </select>
-            </div>
-
-            <div>
-              <label for="clientType">Transaction type</label>
-              <select id="clientType">
-                <option value="all">Income + expenses</option>
-                <option value="expense">Payments / expenses only</option>
-                <option value="income">Income only</option>
-              </select>
-            </div>
-          </div>
-
-          <div class="custom-date-row hidden" id="clientCustomDates">
-            <div>
-              <label for="clientFromDate">From</label>
-              <input id="clientFromDate" type="date">
-            </div>
-            <div>
-              <label for="clientToDate">To</label>
-              <input id="clientToDate" type="date">
-            </div>
-          </div>
-
-          <div class="explorer-summary">
-            <div><span>Matching income</span><strong id="clientMatchIncome">₹0.00</strong></div>
-            <div><span>Matching payments</span><strong id="clientMatchExpense">₹0.00</strong></div>
-            <div><span>Matching records</span><strong id="clientMatchCount">0</strong></div>
-          </div>
-
-          <div class="table-wrap explorer-table-wrap">
-            <table>
-              <thead>
-                <tr>
-                  <th>Date</th>
-                  <th>Description / material</th>
-                  <th>Type</th>
-                  <th class="money-column">Amount</th>
-                </tr>
-              </thead>
-              <tbody id="clientExplorerTable"></tbody>
-            </table>
-          </div>
-
-          <div class="empty-state" id="clientExplorerEmpty">No matching transactions.</div>
-        </section>
-
-        <section class="panel transaction-panel">
-          <div class="transaction-heading">
-            <div>
-              <h3>Transactions</h3>
-              <p class="muted">Manage this client's transactions.</p>
-            </div>
-
-            <div class="export-buttons">
-              <button id="exportCsvBtn" class="secondary-btn">Export CSV</button>
-              <button id="exportPdfBtn" class="primary-btn">Download PDF</button>
-            </div>
-          </div>
-
-          <div class="transaction-actions">
-            <button id="addIncomeBtn" class="income-btn">+ Income</button>
-            <button id="addExpenseBtn" class="expense-btn">+ Expense</button>
-          </div>
-
-          <div class="table-wrap">
-            <table>
-              <thead>
-                <tr>
-                  <th>Date</th>
-                  <th>Description</th>
-                  <th class="money-column">Income</th>
-                  <th class="money-column">Expense</th>
-                  <th>Action</th>
-                </tr>
-              </thead>
-              <tbody id="transactionsTable"></tbody>
-            </table>
-          </div>
-
-          <div id="transactionsEmpty" class="empty-state">
-            No transactions yet. Add an income or expense.
-          </div>
-        </section>
+        <div class="table-wrap">
+          <table>
+            <thead>
+              <tr>
+                <th>Date</th>
+                <th>Description</th>
+                <th>Amount</th>
+                <th>Paid</th>
+                <th>Received</th>
+                <th>Balance</th>
+                <th>Actions</th>
+              </tr>
+            </thead>
+            <tbody id="transactionList"></tbody>
+<tfoot id="transactionTotals"></tfoot>
+          </table>
+        </div>
+        <div class="table-summary">
+  <div>
+    <span>Total Amount</span>
+    <strong id="bottomTotalAmount">₹0.00</strong>
+  </div>
+  <div>
+    <span>Received</span>
+    <strong id="bottomTotalReceived">₹0.00</strong>
+  </div>
+  <div>
+    <span>Balance</span>
+    <strong id="bottomTotalBalance">₹0.00</strong>
+  </div>
       </section>
     </main>
-  </div>
+  </section>
 
   <dialog id="clientDialog">
     <form id="clientForm">
-      <h2>Add client</h2>
-
-      <label for="clientName">Client name</label>
-      <input id="clientName" type="text" placeholder="Enter client name" required>
-
-      <label for="clientPhone">Phone number</label>
-      <input id="clientPhone" type="tel" placeholder="Enter phone number">
-
-      <label for="clientProject">Project / site</label>
-      <input id="clientProject" type="text" placeholder="Enter project name">
-
-      <div class="welcome-row">
-        <button type="button" id="cancelDialog" class="secondary-btn">Cancel</button>
-        <button class="primary-btn" type="submit">Save client</button>
-      </div>
-
+      <h2>Add Client</h2>
+      <label>Client Name</label>
+      <input id="clientName" required>
+      <label>Phone (optional)</label>
+      <input id="clientPhone">
+      <label>Address (optional)</label>
+      <textarea id="clientAddress"></textarea>
       <p id="clientMessage" class="message"></p>
+      <div class="dialog-actions">
+        <button type="button" class="secondary" id="cancelClientBtn">Cancel</button>
+        <button type="submit">Save Client</button>
+      </div>
     </form>
   </dialog>
 
   <dialog id="transactionDialog">
     <form id="transactionForm">
-      <h2 id="transactionDialogTitle">Add income</h2>
-
-      <input id="transactionType" type="hidden" value="income">
-
-      <label for="transactionDate">Date</label>
+      <h2 id="transactionDialogTitle">Add Transaction</h2>
+      <label>Date</label>
       <input id="transactionDate" type="date" required>
-
-      <label for="transactionDescription">Description</label>
-      <input id="transactionDescription" type="text" placeholder="Description" required>
-
-      <label for="transactionAmount">Amount (₹)</label>
-      <input id="transactionAmount" type="number" min="0.01" step="0.01" placeholder="Amount" required>
-
-      <div class="welcome-row">
-        <button type="button" id="cancelTransaction" class="secondary-btn">Cancel</button>
-        <button id="saveTransactionBtn" class="primary-btn" type="submit">Save transaction</button>
-      </div>
-
+      <label>Description</label>
+      <input id="transactionDescription" required>
+      <label>Amount</label>
+      <input id="transactionAmount" type="number" min="0.01" step="0.01" required>
+      <label class="check-label">
+        <input id="transactionPaid" type="checkbox">
+        Paid
+      </label>
       <p id="transactionMessage" class="message"></p>
+      <div class="dialog-actions">
+        <button type="button" class="secondary" id="cancelTransactionBtn">Cancel</button>
+        <button type="submit">Save Transaction</button>
+      </div>
     </form>
   </dialog>
 
