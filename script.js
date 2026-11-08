@@ -1,1097 +1,422 @@
 
-import { initializeApp } from "https://www.gstatic.com/firebasejs/11.10.0/firebase-app.js";
+import { initializeApp } from "https://www.gstatic.com/firebasejs/12.5.0/firebase-app.js";
 
 import {
   getAuth,
   createUserWithEmailAndPassword,
   signInWithEmailAndPassword,
-  onAuthStateChanged,
-  signOut
-} from "https://www.gstatic.com/firebasejs/11.10.0/firebase-auth.js";
+  signOut,
+  onAuthStateChanged
+} from "https://www.gstatic.com/firebasejs/12.5.0/firebase-auth.js";
 
 import {
   getFirestore,
   collection,
-  doc,
-  setDoc,
   addDoc,
+  getDocs,
+  doc,
   deleteDoc,
-  updateDoc,
-  onSnapshot,
-  query,
-  orderBy,
   serverTimestamp
-} from "https://www.gstatic.com/firebasejs/11.10.0/firebase-firestore.js";
+} from "https://www.gstatic.com/firebasejs/12.5.0/firebase-firestore.js";
 
-// ==========================================
-// FIREBASE CONFIGURATION - LINEX BUILDERS
-// ==========================================
-
+// FIREBASE CONFIG
 const firebaseConfig = {
-  apiKey: "AIzaSyB5uMpQPweSjvFT8lW6etkLQiTPKKR1_Zw",
-  authDomain: "linex-builders.firebaseapp.com",
-  projectId: "linex-builders",
-  storageBucket: "linex-builders.firebasestorage.app",
-  messagingSenderId: "310453994968",
-  appId: "1:310453994968:web:b35362a87e2cd28e13dead",
-  measurementId: "G-16DSMNFDFM"
+  apiKey: "AIzaSyByMIpKF3AAldzu_6Cw8rDH41NgVo44-Uo",
+  authDomain: "accountancy-804b2.firebaseapp.com",
+  projectId: "accountancy-804b2",
+  storageBucket: "accountancy-804b2.firebasestorage.app",
+  messagingSenderId: "537103223807",
+  appId: "1:537103223807:web:1d132e037c245c1fb835ca",
+  measurementId: "G-M17HHGNH3C"
 };
 
 const app = initializeApp(firebaseConfig);
 const auth = getAuth(app);
 const db = getFirestore(app);
 
-// ==========================================
-// APP STATE
-// ==========================================
-
 const $ = id => document.getElementById(id);
 
 let currentUser = null;
-let currentUsername = "";
-let currentClient = null;
+let clients = [];
+let activeClient = null;
+let allTransactionsCache = [];
+let activeClientTransactions = [];
+let savingClient = false;
+let savingTransaction = false;
 let isRegistering = false;
+let isLoggingIn = false;
 
-let clientsUnsubscribe = null;
-let entriesUnsubscribe = null;
+function setVisible(element, visible) {
+  if (!element) return;
+  element.classList.toggle("hidden", !visible);
+  element.hidden = !visible;
+}
 
-let dashboardEntryUnsubs = new Map();
-let dashboardTotals = new Map();
+function usernameToEmail(username) {
+  return username.trim().toLowerCase() + "@users.buildledger.invalid";
+}
 
-let currentEntries = [];
-let authReady = false;
+function userCollection(name) {
+  return collection(db, "users", currentUser.uid, name);
+}
 
-// ==========================================
-// HELPER FUNCTIONS
-// ==========================================
-
-function formatMoney(value) {
+function money(value) {
   return "₹" + Number(value || 0).toLocaleString("en-IN", {
     minimumFractionDigits: 2,
     maximumFractionDigits: 2
   });
 }
 
-function usernameEmail(username) {
-  return username.toLowerCase() + "@buildledger.app";
+function message(id, text) {
+  const element = $(id);
+  if (element) element.textContent = text;
 }
 
-function todayDate() {
-  const now = new Date();
-  const year = now.getFullYear();
-  const month = String(now.getMonth() + 1).padStart(2, "0");
-  const day = String(now.getDate()).padStart(2, "0");
+// PAGE NAVIGATION
+function showPage(page) {
+  ["dashboardPage", "clientsPage", "accountPage"].forEach(id => {
+    setVisible($(id), id === page);
+  });
 
-  return `${year}-${month}-${day}`;
+  const titles = {
+    dashboardPage: "Dashboard",
+    clientsPage: "Clients",
+    accountPage: "Client Account"
+  };
+
+  if ($("pageTitle")) {
+    $("pageTitle").textContent = titles[page] || "BuildLedger";
+  }
 }
 
-function formatDate(date) {
-  if (!date) return "-";
+// LOGIN / REGISTER SWITCH
+function switchAuth() {
+  const login = $("loginForm");
+  const register = $("registerForm");
 
-  const parts = date.split("-");
+  if (!login || !register) return;
 
-  if (parts.length !== 3) return date;
+  const registering = login.classList.contains("hidden");
 
-  return `${parts[2]}/${parts[1]}/${parts[0]}`;
+  setVisible(login, registering);
+  setVisible(register, !registering);
+
+  message("loginMessage", "");
+  message("registerMessage", "");
+
+  if ($("authTitle")) {
+    $("authTitle").textContent = registering
+      ? "Welcome back"
+      : "Create account";
+  }
+
+  if ($("authSubtitle")) {
+    $("authSubtitle").textContent = registering
+      ? "Sign in to your account"
+      : "Register to use BuildLedger";
+  }
+
+  if ($("authSwitchText")) {
+    $("authSwitchText").textContent = registering
+      ? "Don't have an account?"
+      : "Already have an account?";
+  }
+
+  if ($("switchAuthBtn")) {
+    $("switchAuthBtn").textContent = registering
+      ? "Create account"
+      : "Sign in";
+  }
 }
 
-function showMessage(message, success = false) {
-  $("authMessage").textContent = message;
+$("switchAuthBtn")?.addEventListener("click", switchAuth);
 
-  $("authMessage").style.color = success
-    ? "#15966a"
-    : "#dc5555";
-}
-
-function setLoading(show) {
-  $("loadingScreen").classList.toggle("hidden", !show);
-}
-
-function setAuthButtonText(text) {
-  $("authButton").textContent = text;
-}
-
-function getUserClientsPath() {
-  return collection(db, "users", currentUser.uid, "clients");
-}
-
-function getEntriesPath(clientId) {
-  return collection(
-    db,
-    "users",
-    currentUser.uid,
-    "clients",
-    clientId,
-    "entries"
-  );
-}
-
-// ==========================================
-// SCREEN MANAGEMENT
-// ==========================================
-
-function showDashboard() {
-  $("authScreen").classList.add("hidden");
-  $("appScreen").classList.remove("hidden");
-
-  $("dashboard").classList.remove("hidden");
-  $("ledgerSection").classList.add("hidden");
-}
-
-function resetSubscriptions() {
-  if (clientsUnsubscribe) clientsUnsubscribe();
-  if (entriesUnsubscribe) entriesUnsubscribe();
-
-  clientsUnsubscribe = null;
-  entriesUnsubscribe = null;
-
-  dashboardEntryUnsubs.forEach(unsubscribe => unsubscribe());
-  dashboardEntryUnsubs.clear();
-
-  dashboardTotals.clear();
-}
-
-// ==========================================
-// AUTHENTICATION TABS
-// ==========================================
-
-function setAuthMode(registering) {
-  isRegistering = registering;
-
-  $("loginTab").classList.toggle("active", !registering);
-  $("registerTab").classList.toggle("active", registering);
-
-  setAuthButtonText(
-    registering ? "Create Account" : "Sign In"
-  );
-
-  $("password").minLength = registering ? 8 : 6;
-
-  $("password").setAttribute(
-    "autocomplete",
-    registering ? "new-password" : "current-password"
-  );
-
-  showMessage("");
-}
-
-$("loginTab").addEventListener("click", () => {
-  setAuthMode(false);
-});
-
-$("registerTab").addEventListener("click", () => {
-  setAuthMode(true);
-});
-
-// ==========================================
-// SHOW PASSWORD
-// ==========================================
-
-$("showPassword").addEventListener("change", event => {
-  $("password").type = event.target.checked
-    ? "text"
-    : "password";
-});
-
-// ==========================================
-// REGISTER AND LOGIN
-// ==========================================
-
-$("authForm").addEventListener("submit", async event => {
+// REGISTER
+$("registerForm")?.addEventListener("submit", async event => {
   event.preventDefault();
+  if (isRegistering) return;
 
-  const username = $("username").value.trim().toLowerCase();
-  const password = $("password").value;
+  const username = $("registerUsername").value.trim();
+  const password = $("registerPassword").value;
+  const confirm = $("confirmPassword").value;
 
-  if (!/^[a-z0-9._-]{3,20}$/.test(username)) {
-    showMessage(
-      "Username must contain 3–20 letters, numbers, dots, _ or -."
-    );
+  if (!/^[A-Za-z0-9_]{3,20}$/.test(username)) {
+    message("registerMessage", "Use 3–20 letters, numbers or underscores.");
     return;
   }
 
-  if (password.length < (isRegistering ? 8 : 6)) {
-    showMessage(
-      isRegistering
-        ? "Password must contain at least 8 characters."
-        : "Please enter your password."
-    );
+  if (password.length < 8) {
+    message("registerMessage", "Password must be at least 8 characters.");
     return;
   }
 
-  $("authButton").disabled = true;
-  setAuthButtonText("Please wait...");
+  if (password !== confirm) {
+    message("registerMessage", "Passwords do not match.");
+    return;
+  }
+
+  isRegistering = true;
+  const button = $("registerForm").querySelector('button[type="submit"]');
+
+  if (button) {
+    button.disabled = true;
+    button.textContent = "Creating account...";
+  }
 
   try {
-    const email = usernameEmail(username);
-
-    if (isRegistering) {
-      const credential = await createUserWithEmailAndPassword(
-        auth,
-        email,
-        password
-      );
-
-      await setDoc(
-        doc(db, "users", credential.user.uid),
-        {
-          username,
-          createdAt: serverTimestamp()
-        }
-      );
-
-      showMessage("Account created successfully!", true);
-
-    } else {
-      await signInWithEmailAndPassword(
-        auth,
-        email,
-        password
-      );
-    }
-
-  } catch (error) {
-    console.error("Authentication error:", error);
-
-    const messages = {
-      "auth/email-already-in-use":
-        "This username is already taken.",
-
-      "auth/invalid-credential":
-        "Incorrect username or password.",
-
-      "auth/user-not-found":
-        "Account not found. Please register first.",
-
-      "auth/weak-password":
-        "Please choose a stronger password.",
-
-      "auth/too-many-requests":
-        "Too many attempts. Try again later.",
-
-      "auth/network-request-failed":
-        "Check your internet connection.",
-
-      "auth/operation-not-allowed":
-        "Enable Email/Password in Firebase Authentication."
-    };
-
-    showMessage(messages[error.code] || error.message);
-
-  } finally {
-    $("authButton").disabled = false;
-
-    setAuthButtonText(
-      isRegistering ? "Create Account" : "Sign In"
+    await createUserWithEmailAndPassword(
+      auth,
+      usernameToEmail(username),
+      password
     );
+    message("registerMessage", "Account created successfully!");
+  } catch (error) {
+    console.error(error);
+    message("registerMessage", "Registration failed: " + error.message);
+  } finally {
+    isRegistering = false;
+    if (button) {
+      button.disabled = false;
+      button.textContent = "Create account →";
+    }
   }
 });
 
-// ==========================================
-// AUTHENTICATION STATE
-// ==========================================
+// LOGIN
+$("loginForm")?.addEventListener("submit", async event => {
+  event.preventDefault();
+  if (isLoggingIn) return;
 
-onAuthStateChanged(auth, user => {
-  resetSubscriptions();
+  const username = $("loginUsername").value.trim();
+  const password = $("loginPassword").value;
 
-  currentUser = user;
-  currentClient = null;
-  currentEntries = [];
-
-  if (!user) {
-    currentUsername = "";
-
-    $("appScreen").classList.add("hidden");
-    $("authScreen").classList.remove("hidden");
-
-    if (authReady) showMessage("");
-
-    authReady = true;
-    setLoading(false);
-
+  if (!username || !password) {
+    message("loginMessage", "Enter your username and password.");
     return;
   }
 
-  currentUsername = user.email
-    ? user.email.split("@")[0]
-    : "User";
+  isLoggingIn = true;
+  const button = $("loginForm").querySelector('button[type="submit"]');
 
-  $("displayUsername").textContent = currentUsername;
+  if (button) {
+    button.disabled = true;
+    button.textContent = "Signing in...";
+  }
 
-  $("userAvatar").textContent =
-    currentUsername.charAt(0).toUpperCase();
-
-  $("todayDisplay").textContent =
-    new Date().toLocaleDateString("en-IN", {
-      day: "numeric",
-      month: "short",
-      year: "numeric"
-    });
-
-  showDashboard();
-  listenToClients();
-
-  authReady = true;
-  setLoading(false);
+  try {
+    await signInWithEmailAndPassword(
+      auth,
+      usernameToEmail(username),
+      password
+    );
+  } catch (error) {
+    console.error(error);
+    message("loginMessage", "Login failed: " + error.message);
+  } finally {
+    isLoggingIn = false;
+    if (button) {
+      button.disabled = false;
+      button.textContent = "Sign in →";
+    }
+  }
 });
 
-// ==========================================
 // LOGOUT
-// ==========================================
-
-$("logoutBtn").addEventListener("click", async () => {
-  if (!confirm("Are you sure you want to sign out?")) {
-    return;
-  }
-
+$("logoutBtn")?.addEventListener("click", async () => {
   try {
     await signOut(auth);
   } catch (error) {
-    console.error(error);
-    alert("Could not sign out: " + error.message);
+    alert("Sign out failed: " + error.message);
   }
 });
 
-// ==========================================
-// CLIENT FORM
-// ==========================================
+// AUTHENTICATION STATE
+onAuthStateChanged(auth, async user => {
+  currentUser = user;
 
-$("addClientBtn").addEventListener("click", () => {
-  $("clientForm").classList.remove("hidden");
-  $("clientName").focus();
+  if (user) {
+    setVisible($("loginScreen"), false);
+    setVisible($("appScreen"), true);
+
+    if ($("currentUsername")) {
+      $("currentUsername").textContent =
+        user.email?.split("@")[0] || "User";
+    }
+
+    showPage("dashboardPage");
+    await loadClients();
+  } else {
+    clients = [];
+    activeClient = null;
+    allTransactionsCache = [];
+    activeClientTransactions = [];
+    setVisible($("loginScreen"), true);
+    setVisible($("appScreen"), false);
+  }
 });
 
-$("cancelClientBtn").addEventListener("click", () => {
-  $("clientForm").reset();
-  $("clientForm").classList.add("hidden");
+// NAVIGATION
+$("dashboardNav")?.addEventListener("click", () => {
+  showPage("dashboardPage");
+  updateDashboard();
 });
 
-// ==========================================
-// ADD CLIENT
-// ==========================================
+$("clientsNav")?.addEventListener("click", () => {
+  showPage("clientsPage");
+  renderClients();
+});
 
-$("clientForm").addEventListener("submit", async event => {
+$("viewAllClients")?.addEventListener("click", () => {
+  showPage("clientsPage");
+  renderClients();
+});
+
+// CLIENT DIALOG
+function openClientDialog() {
+  if (savingClient) return;
+
+  $("clientForm")?.reset();
+  message("clientMessage", "");
+
+  if ($("clientDialog") && !$("clientDialog").open) {
+    $("clientDialog").showModal();
+  }
+}
+
+$("addClientBtn")?.addEventListener("click", openClientDialog);
+$("addClientTop")?.addEventListener("click", openClientDialog);
+
+$("cancelDialog")?.addEventListener("click", () => {
+  if (!savingClient) $("clientDialog")?.close();
+});
+
+// SAVE CLIENT
+$("clientForm")?.addEventListener("submit", async event => {
   event.preventDefault();
-
-  if (!currentUser) return;
+  if (savingClient) return;
 
   const name = $("clientName").value.trim();
+  const phone = $("clientPhone").value.trim();
+  const project = $("clientProject").value.trim();
 
-  if (!name) return;
+  if (!currentUser) {
+    message("clientMessage", "Please sign in first.");
+    return;
+  }
+
+  if (!name) {
+    message("clientMessage", "Enter a client name.");
+    return;
+  }
+
+  savingClient = true;
+
+  const form = $("clientForm");
+  const button = form.querySelector('button[type="submit"]');
+
+  if (button) {
+    button.disabled = true;
+    button.textContent = "Saving...";
+  }
+
+  $("clientDialog").close();
+  form.reset();
 
   try {
-    await addDoc(getUserClientsPath(), {
+    const newClient = await addDoc(userCollection("clients"), {
       name,
+      phone,
+      project,
       createdAt: serverTimestamp()
     });
 
-    $("clientForm").reset();
-    $("clientForm").classList.add("hidden");
+    clients.push({
+      id: newClient.id,
+      name,
+      phone,
+      project,
+      income: 0,
+      expenses: 0
+    });
 
+    renderClients();
+    updateDashboard();
+    const filter = $("dashboardClientFilter");
+    if (filter) {
+      const option = document.createElement("option");
+      option.value = newClient.id;
+      option.textContent = name;
+      filter.appendChild(option);
+    }
+    await loadAllTransactions();
   } catch (error) {
-    console.error(error);
-    alert("Could not add client: " + error.message);
+    console.error("Client save failed:", error);
+    alert("Client could not be saved: " + error.message);
+  } finally {
+    savingClient = false;
+    if (button) {
+      button.disabled = false;
+      button.textContent = "Save client";
+    }
   }
 });
 
-// ==========================================
-// LISTEN TO CLIENTS
-// ==========================================
-
-function listenToClients() {
-  if (clientsUnsubscribe) clientsUnsubscribe();
-
-  const clientsQuery = query(
-    getUserClientsPath(),
-    orderBy("createdAt", "desc")
-  );
-
-  clientsUnsubscribe = onSnapshot(
-    clientsQuery,
-    snapshot => {
-      const clients = snapshot.docs.map(item => ({
-        id: item.id,
-        ...item.data()
-      }));
-
-      renderClients(clients);
-      watchDashboardTotals(clients);
-    },
-    error => {
-      console.error(error);
-      alert("Unable to load clients: " + error.message);
-    }
-  );
-}
-
-// ==========================================
-// DISPLAY CLIENTS
-// ==========================================
-
-function renderClients(clients) {
-  const container = $("clientsList");
-
-  container.replaceChildren();
-
-  $("clientCount").textContent =
-    `${clients.length} ${clients.length === 1 ? "Client" : "Clients"}`;
-
-  $("clientCountNumber").textContent = clients.length;
-
-  if (clients.length === 0) {
-    const empty = document.createElement("div");
-
-    empty.className = "empty-state";
-    empty.textContent =
-      "No clients added yet. Click + Add New Client to begin.";
-
-    container.appendChild(empty);
-    return;
-  }
-
-  clients.forEach(client => {
-    const card = document.createElement("div");
-    card.className = "client-card";
-    card.tabIndex = 0;
-    card.setAttribute("role", "button");
-
-    const title = document.createElement("h3");
-    title.textContent = client.name;
-
-    const description = document.createElement("p");
-    description.textContent = "Client financial account";
-
-    const arrow = document.createElement("div");
-    arrow.className = "client-arrow";
-    arrow.textContent = "Open Ledger →";
-
-    card.append(title, description, arrow);
-
-    card.addEventListener("click", () => openClient(client));
-
-    card.addEventListener("keydown", event => {
-      if (event.key === "Enter" || event.key === " ") {
-        event.preventDefault();
-        openClient(client);
-      }
-    });
-
-    container.appendChild(card);
-  });
-}
-
-// ==========================================
-// DASHBOARD FINANCIAL TOTALS
-// ==========================================
-
-function watchDashboardTotals(clients) {
-  const validIds = new Set(clients.map(client => client.id));
-
-  // Remove listeners for deleted clients.
-  dashboardEntryUnsubs.forEach((unsubscribe, id) => {
-    if (!validIds.has(id)) {
-      unsubscribe();
-      dashboardEntryUnsubs.delete(id);
-      dashboardTotals.delete(id);
-    }
-  });
-
-  // Listen to each client's entries.
-  clients.forEach(client => {
-    if (dashboardEntryUnsubs.has(client.id)) return;
-
-    dashboardTotals.set(client.id, {
-      received: 0,
-      balance: 0
-    });
-
-    const unsubscribe = onSnapshot(
-      query(
-        getEntriesPath(client.id),
-        orderBy("date", "asc")
-      ),
-      snapshot => {
-        let received = 0;
-        let balance = 0;
-
-        snapshot.docs.forEach(item => {
-          const entry = item.data();
-          const amount = Number(entry.amount) || 0;
-
-          if (entry.received === true) {
-            received += amount;
-          } else {
-            balance += amount;
-          }
-        });
-
-        dashboardTotals.set(client.id, {
-          received,
-          balance
-        });
-
-        updateDashboardTotals();
-      },
-      error => {
-        console.error("Dashboard totals error:", error);
-      }
-    );
-
-    dashboardEntryUnsubs.set(client.id, unsubscribe);
-  });
-
-  updateDashboardTotals();
-}
-
-function updateDashboardTotals() {
-  let received = 0;
-  let balance = 0;
-
-  dashboardTotals.forEach(total => {
-    received += total.received;
-    balance += total.balance;
-  });
-
-  $("dashboardReceived").textContent = formatMoney(received);
-  $("dashboardBalance").textContent = formatMoney(balance);
-}
-
-// ==========================================
-// OPEN CLIENT LEDGER
-// ==========================================
-
-function openClient(client) {
-  currentClient = client;
-
-  $("dashboard").classList.add("hidden");
-  $("ledgerSection").classList.remove("hidden");
-
-  $("ledgerClientName").textContent = client.name;
-
-  $("entryDate").value = todayDate();
-
-  $("transactionForm").reset();
-  $("entryDate").value = todayDate();
-
-  listenToEntries();
-
-  window.scrollTo({
-    top: 0,
-    behavior: "smooth"
-  });
-}
-
-// ==========================================
-// BACK TO DASHBOARD
-// ==========================================
-
-$("backBtn").addEventListener("click", () => {
-  currentClient = null;
-  currentEntries = [];
-
-  if (entriesUnsubscribe) {
-    entriesUnsubscribe();
-  }
-
-  entriesUnsubscribe = null;
-
-  $("ledgerSection").classList.add("hidden");
-  $("dashboard").classList.remove("hidden");
-
-  window.scrollTo({
-    top: 0,
-    behavior: "smooth"
-  });
-});
-
-// ==========================================
-// ADD TRANSACTION
-// ==========================================
-
-$("transactionForm").addEventListener("submit", async event => {
-  event.preventDefault();
-
-  if (!currentUser || !currentClient) return;
-
-  const date = $("entryDate").value;
-  const description = $("entryDescription").value.trim();
-  const amount = Number($("entryAmount").value);
-
-  if (
-    !date ||
-    !description ||
-    !Number.isFinite(amount) ||
-    amount <= 0
-  ) {
-    alert("Please enter valid transaction details.");
-    return;
-  }
+// LOAD CLIENTS
+async function loadClients() {
+  if (!currentUser) return;
 
   try {
-    await addDoc(getEntriesPath(currentClient.id), {
-      date,
-      description,
-      amount: Math.round(amount * 100) / 100,
-      received: false,
-      createdAt: serverTimestamp()
-    });
+    const snapshot = await getDocs(userCollection("clients"));
 
-    $("transactionForm").reset();
-    $("entryDate").value = todayDate();
+    clients = snapshot.docs.map(item => ({
+      id: item.id,
+      ...item.data()
+    }));
 
-  } catch (error) {
-    console.error(error);
-    alert("Could not save transaction: " + error.message);
-  }
-});
-
-// ==========================================
-// LISTEN TO TRANSACTIONS
-// ==========================================
-
-function listenToEntries() {
-  if (entriesUnsubscribe) entriesUnsubscribe();
-
-  const entriesQuery = query(
-    getEntriesPath(currentClient.id),
-    orderBy("date", "asc")
-  );
-
-  entriesUnsubscribe = onSnapshot(
-    entriesQuery,
-    snapshot => {
-      currentEntries = snapshot.docs.map(item => ({
-        id: item.id,
-        ...item.data()
-      }));
-
-      renderEntries(currentEntries);
-    },
-    error => {
-      console.error(error);
-      alert("Unable to load transactions: " + error.message);
-    }
-  );
-}
-
-// ==========================================
-// CHANGE PAYMENT STATUS
-// ==========================================
-
-async function toggleReceived(entryId, received) {
-  if (!currentUser || !currentClient) return;
-
-  try {
-    await updateDoc(
-      doc(
-        db,
-        "users",
-        currentUser.uid,
-        "clients",
-        currentClient.id,
-        "entries",
-        entryId
-      ),
-      { received }
-    );
-
-  } catch (error) {
-    console.error(error);
-    alert("Could not update payment status: " + error.message);
-  }
-}
-
-// ==========================================
-// DELETE TRANSACTION
-// ==========================================
-
-async function deleteEntry(entryId) {
-  if (!confirm("Delete this transaction permanently?")) return;
-
-  if (!currentUser || !currentClient) return;
-
-  try {
-    await deleteDoc(
-      doc(
-        db,
-        "users",
-        currentUser.uid,
-        "clients",
-        currentClient.id,
-        "entries",
-        entryId
-      )
-    );
-
-  } catch (error) {
-    console.error(error);
-    alert("Could not delete transaction: " + error.message);
-  }
-}
-
-// ==========================================
-// DISPLAY TRANSACTIONS AND TOTALS
-// ==========================================
-
-function renderEntries(entries) {
-  const tbody = $("entriesBody");
-
-  tbody.replaceChildren();
-
-  let totalAmount = 0;
-  let totalReceived = 0;
-  let totalBalance = 0;
-
-  $("entryCount").textContent =
-    `${entries.length} ${entries.length === 1 ? "entry" : "entries"}`;
-
-  if (entries.length === 0) {
-    const row = document.createElement("tr");
-    const cell = document.createElement("td");
-
-    cell.colSpan = 7;
-    cell.className = "empty-state";
-    cell.textContent = "No transactions yet.";
-
-    row.appendChild(cell);
-    tbody.appendChild(row);
-  }
-
-  entries.forEach(entry => {
-    const amount = Number(entry.amount) || 0;
-    const received = entry.received === true;
-
-    totalAmount += amount;
-
-    if (received) {
-      totalReceived += amount;
-    } else {
-      totalBalance += amount;
-    }
-
-    const row = document.createElement("tr");
-
-    const dateCell = document.createElement("td");
-    dateCell.textContent = formatDate(entry.date);
-
-    const descriptionCell = document.createElement("td");
-    descriptionCell.textContent = entry.description || "";
-
-    const amountCell = document.createElement("td");
-    amountCell.textContent = formatMoney(amount);
-
-    const checkboxCell = document.createElement("td");
-    const checkbox = document.createElement("input");
-
-    checkbox.type = "checkbox";
-    checkbox.className = "received-checkbox";
-    checkbox.checked = received;
-    checkbox.setAttribute("aria-label", "Mark payment as received");
-
-    checkbox.addEventListener("change", () => {
-      toggleReceived(entry.id, checkbox.checked);
-    });
-
-    checkboxCell.appendChild(checkbox);
-
-    const receivedCell = document.createElement("td");
-    receivedCell.textContent = received ? formatMoney(amount) : "—";
-
-    const balanceCell = document.createElement("td");
-    balanceCell.textContent = received ? "—" : formatMoney(amount);
-
-    const deleteCell = document.createElement("td");
-    const deleteButton = document.createElement("button");
-
-    deleteButton.type = "button";
-    deleteButton.className = "delete-entry-btn";
-    deleteButton.textContent = "Delete";
-
-    deleteButton.addEventListener("click", () => {
-      deleteEntry(entry.id);
-    });
-
-    deleteCell.appendChild(deleteButton);
-
-    row.append(
-      dateCell,
-      descriptionCell,
-      amountCell,
-      checkboxCell,
-      receivedCell,
-      balanceCell,
-      deleteCell
-    );
-
-    tbody.appendChild(row);
-  });
-
-  totalAmount = Math.round(totalAmount * 100) / 100;
-  totalReceived = Math.round(totalReceived * 100) / 100;
-  totalBalance = Math.round(totalBalance * 100) / 100;
-
-  $("totalAmount").textContent = formatMoney(totalAmount);
-  $("totalReceived").textContent = formatMoney(totalReceived);
-  $("totalBalance").textContent = formatMoney(totalBalance);
-
-  $("footAmount").textContent = formatMoney(totalAmount);
-  $("footReceived").textContent = formatMoney(totalReceived);
-  $("footBalance").textContent = formatMoney(totalBalance);
-}
-
-// ==========================================
-// PROFESSIONAL PDF DOWNLOAD
-// ==========================================
-
-$("downloadPdfBtn").addEventListener("click", downloadPDF);
-
-function downloadPDF() {
-  if (!currentClient) {
-    alert("Please open a client first.");
-    return;
-  }
-
-  if (!window.jspdf || !window.jspdf.jsPDF) {
-    alert("PDF library could not load. Check your internet connection and refresh.");
-    return;
-  }
-
-  try {
-    const { jsPDF } = window.jspdf;
-
-    const pdf = new jsPDF({
-      orientation: "portrait",
-      unit: "mm",
-      format: "a4"
-    });
-
-    const pageWidth = pdf.internal.pageSize.getWidth();
-
-    let totalAmount = 0;
-    let totalReceived = 0;
-    let totalBalance = 0;
-
-    currentEntries.forEach(entry => {
-      const amount = Number(entry.amount) || 0;
-
-      totalAmount += amount;
-
-      if (entry.received === true) {
-        totalReceived += amount;
-      } else {
-        totalBalance += amount;
-      }
-    });
-
-    const pdfMoney = value =>
-      "INR " + Number(value || 0).toLocaleString("en-IN", {
-        minimumFractionDigits: 2,
-        maximumFractionDigits: 2
+    renderClients();
+    updateDashboard();
+    const clientFilter = $("dashboardClientFilter");
+    if (clientFilter) {
+      clientFilter.innerHTML = '<option value="all">All clients</option>';
+      clients.forEach(client => {
+        const option = document.createElement("option");
+        option.value = client.id;
+        option.textContent = client.name || "Unnamed client";
+        clientFilter.appendChild(option);
       });
-
-    // Header
-    pdf.setFillColor(16, 29, 53);
-    pdf.rect(0, 0, pageWidth, 43, "F");
-
-    pdf.setTextColor(255, 255, 255);
-    pdf.setFont("helvetica", "bold");
-    pdf.setFontSize(20);
-
-    pdf.text("LineX Builders", 15, 17);
-
-    pdf.setFont("helvetica", "normal");
-    pdf.setFontSize(9);
-
-    pdf.text("CLIENT FINANCIAL STATEMENT", 15, 25);
-    pdf.text("Payment and balance report", 15, 32);
-
-    // Client details
-    pdf.setTextColor(35, 48, 70);
-    pdf.setFont("helvetica", "bold");
-    pdf.setFontSize(12);
-
-    pdf.text("CLIENT DETAILS", 15, 55);
-
-    pdf.setFont("helvetica", "normal");
-    pdf.setFontSize(10);
-
-    pdf.text("Client Name: " + currentClient.name, 15, 63);
-    pdf.text("Prepared: " + new Date().toLocaleDateString("en-IN"), 15, 70);
-
-    // Summary
-    pdf.setFillColor(244, 247, 251);
-    pdf.roundedRect(15, 79, pageWidth - 30, 28, 3, 3, "F");
-
-    const boxWidth = (pageWidth - 30) / 3;
-
-    pdf.setFont("helvetica", "normal");
-    pdf.setFontSize(8);
-    pdf.setTextColor(110, 125, 145);
-
-    pdf.text("TOTAL AMOUNT", 19, 88);
-    pdf.text("TOTAL RECEIVED", 19 + boxWidth, 88);
-    pdf.text("BALANCE", 19 + boxWidth * 2, 88);
-
-    pdf.setFont("helvetica", "bold");
-    pdf.setFontSize(10);
-
-    pdf.setTextColor(35, 48, 70);
-    pdf.text(pdfMoney(totalAmount), 19, 98);
-
-    pdf.setTextColor(20, 150, 107);
-    pdf.text(pdfMoney(totalReceived), 19 + boxWidth, 98);
-
-    pdf.setTextColor(201, 130, 45);
-    pdf.text(pdfMoney(totalBalance), 19 + boxWidth * 2, 98);
-
-    // Transaction table
-    const tableRows = currentEntries.map(entry => {
-      const amount = Number(entry.amount) || 0;
-      const received = entry.received === true;
-
-      return [
-        formatDate(entry.date),
-        entry.description || "",
-        pdfMoney(amount),
-        received ? "Received" : "Pending",
-        received ? pdfMoney(amount) : "-",
-        received ? "-" : pdfMoney(amount)
-      ];
-    });
-
-    if (typeof pdf.autoTable !== "function") {
-      alert("PDF table library could not load. Refresh the page and try again.");
-      return;
     }
-
-    pdf.autoTable({
-      startY: 119,
-      head: [[
-        "Date",
-        "Description",
-        "Amount",
-        "Status",
-        "Received",
-        "Balance"
-      ]],
-      body: tableRows,
-      theme: "grid",
-
-      styles: {
-        font: "helvetica",
-        fontSize: 8,
-        cellPadding: 3,
-        textColor: [55, 67, 85],
-        lineColor: [225, 231, 239],
-        lineWidth: 0.2
-      },
-
-      headStyles: {
-        fillColor: [27, 48, 78],
-        textColor: [255, 255, 255],
-        fontStyle: "bold"
-      },
-
-      alternateRowStyles: {
-        fillColor: [247, 249, 252]
-      },
-
-      columnStyles: {
-        0: { cellWidth: 21 },
-        1: { cellWidth: 47 },
-        2: { cellWidth: 27, halign: "right" },
-        3: { cellWidth: 23 },
-        4: { cellWidth: 31, halign: "right" },
-        5: { cellWidth: 31, halign: "right" }
-      },
-
-      margin: {
-        left: 15,
-        right: 15,
-        bottom: 23
-      }
-    });
-
-    // Grand total after table
-    let finalY = pdf.lastAutoTable.finalY + 9;
-
-    if (finalY > 260) {
-      pdf.addPage();
-      finalY = 25;
-    }
-
-    pdf.setFillColor(244, 247, 251);
-    pdf.roundedRect(15, finalY, pageWidth - 30, 25, 3, 3, "F");
-
-    pdf.setFont("helvetica", "bold");
-    pdf.setFontSize(9);
-    pdf.setTextColor(35, 48, 70);
-
-    pdf.text("GRAND TOTAL", 20, finalY + 10);
-
-    pdf.setFontSize(8);
-    pdf.text(
-      "Amount: " + pdfMoney(totalAmount),
-      20,
-      finalY + 18
-    );
-
-    pdf.setTextColor(20, 150, 107);
-    pdf.text(
-      "Received: " + pdfMoney(totalReceived),
-      90,
-      finalY + 18
-    );
-
-    pdf.setTextColor(201, 130, 45);
-    pdf.text(
-      "Balance: " + pdfMoney(totalBalance),
-      155,
-      finalY + 18
-    );
-
-    // Page footers
-    const pages = pdf.internal.getNumberOfPages();
-
-    for (let i = 1; i <= pages; i++) {
-      pdf.setPage(i);
-
-      const pageHeight = pdf.internal.pageSize.getHeight();
-
-      pdf.setDrawColor(225, 231, 240);
-      pdf.line(15, pageHeight - 17, pageWidth - 15, pageHeight - 17);
-
-      pdf.setFont("helvetica", "normal");
-      pdf.setFontSize(8);
-      pdf.setTextColor(130, 140, 155);
-
-      pdf.text(
-        "LineX Builders | Client Financial Statement",
-        15,
-        pageHeight - 10
-      );
-
-      pdf.text(
-        `Page ${i} of ${pages}`,
-        pageWidth - 15,
-        pageHeight - 10,
-        { align: "right" }
-      );
-    }
-
-    // Safe filename
-    const safeName = currentClient.name
-      .replace(/[^a-z0-9_-]/gi, "_")
-      .slice(0, 60);
-
-    pdf.save(`LineX_Builders_${safeName}_Statement.pdf`);
-
+    await loadAllTransactions();
   } catch (error) {
-    console.error("PDF error:", error);
-    alert("Could not create PDF: " + error.message);
+    console.error("Loading clients failed:", error);
+    alert("Could not load clients: " + error.message);
   }
 }
 
-// ==========================================
-// END OF LINEX BUILDERS
-// ==========================================
+// TRANSACTION EXPLORER: shared search and date filtering
+function localDateString(date = new Date()) {
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, "0");
+  const day = String(date.getDate()).padStart(2, "0");
+  return `${year}-${month}-${day}`;
+}
+
+function getDateBounds(period, fromDate, toDate) {
+  const today = new Date();
+  const todayString = localDateString(today);
+  if (period === "today") return { from: todayString, to: todayString };
+  if (period === "week") {
+    const start = new Date(today);
+    const day = (start.getDay() + 6) % 7;
+    start.setDate(start.getDate() - day);
+    const end = new Date(start);
+    end.setDate(start.getDate() + 6);
+    return { from: localDateString(start), to: localDateString(end) };
+  }
+  if (period === "month") {
+    const start = new Date(today.getFullYear(), today.getMonth(), 1);
+    const end = new Date(today.getFullYear(), today.getMonth() + 1, 0);
+    return { from: localDateString(start), to: localDateString(end) };
+  }
+  if (period === "custom") return { from: fromDate || "", to: toDate || "" };
+  return { from: "", to: "" };
+}
